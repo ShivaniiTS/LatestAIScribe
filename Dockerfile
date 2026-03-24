@@ -19,11 +19,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install Python deps
-COPY pyproject.toml ./
-RUN pip install --no-cache-dir -e ".[dev]" 2>/dev/null || pip install --no-cache-dir .
+# ── Upgrade pip/setuptools/wheel first (avoids build-backend issues) ─────
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
-# Copy backend source
+# ── Install dependencies (cached Docker layer) ────────────────────────────
+# Copy requirements files first — only these layers rebuild when deps change
+COPY requirements.txt requirements-dev.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
+
+# ── Copy backend source ───────────────────────────────────────────────────
 COPY api/ api/
 COPY config/ config/
 COPY db/ db/

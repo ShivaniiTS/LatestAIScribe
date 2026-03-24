@@ -85,6 +85,7 @@ from api.routes.encounters import router as encounters_router  # noqa: E402
 from api.routes.providers import router as providers_router    # noqa: E402
 from api.routes.notes import router as notes_router            # noqa: E402
 from api.routes.mt import router as mt_router                  # noqa: E402
+from api.routes.scribe import router as scribe_router          # noqa: E402
 from api.ws.session_events import router as ws_router          # noqa: E402
 
 app.include_router(health_router)
@@ -92,6 +93,7 @@ app.include_router(encounters_router)
 app.include_router(providers_router)
 app.include_router(notes_router)
 app.include_router(mt_router)
+app.include_router(scribe_router)
 app.include_router(ws_router)
 
 # ── Static frontend (served in Docker / production) ───────────────────────

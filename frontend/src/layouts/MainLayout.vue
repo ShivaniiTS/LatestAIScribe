@@ -1,43 +1,53 @@
 <template>
   <q-layout view="lHh Lpr lFf">
-    <q-header elevated class="bg-primary text-white">
+    <q-header elevated>
       <q-toolbar>
         <q-btn flat dense round icon="menu" aria-label="Menu" @click="toggleLeftDrawer" />
-        <q-toolbar-title>AI Scribe Enterprise</q-toolbar-title>
-        <q-btn flat round dense icon="notifications" />
+        <q-toolbar-title>Excelsia Web Portal</q-toolbar-title>
       </q-toolbar>
     </q-header>
 
-    <q-drawer v-model="leftDrawerOpen" show-if-above bordered>
+    <q-drawer v-model="leftDrawerOpen" bordered>
       <q-list>
-        <q-item-label header class="text-grey-8">Navigation</q-item-label>
-
-        <q-item clickable v-ripple to="/" exact>
-          <q-item-section avatar><q-icon name="dashboard" /></q-item-section>
-          <q-item-section>Dashboard</q-item-section>
+        <q-item to="/" exact clickable v-ripple>
+          <q-item-section>
+            <q-item-label>
+              <q-icon name="home" class="q-mr-sm" />
+              Dashboard
+            </q-item-label>
+          </q-item-section>
         </q-item>
-
-        <q-item clickable v-ripple to="/scribe">
-          <q-item-section avatar><q-icon name="mic" /></q-item-section>
-          <q-item-section>New Encounter</q-item-section>
+        <q-item to="/md-checkout-main" exact clickable v-ripple>
+          <q-item-section>
+            <q-item-label>
+              <q-icon name="assignment" class="q-mr-sm" />
+              MDCO Form
+            </q-item-label>
+          </q-item-section>
         </q-item>
-
-        <q-item clickable v-ripple to="/history">
-          <q-item-section avatar><q-icon name="history" /></q-item-section>
-          <q-item-section>History</q-item-section>
+        <q-item to="/forms/ai-scribe" clickable v-ripple>
+          <q-item-section>
+            <q-item-label>
+              <q-icon name="mic" class="q-mr-sm" />
+              AI Scribe
+            </q-item-label>
+          </q-item-section>
         </q-item>
-
-        <q-separator spaced />
-        <q-item-label header class="text-grey-8">Admin</q-item-label>
-
-        <q-item clickable v-ripple to="/mt-review">
-          <q-item-section avatar><q-icon name="rate_review" /></q-item-section>
-          <q-item-section>MT Review</q-item-section>
+        <q-item to="/soap-history" exact clickable v-ripple>
+          <q-item-section>
+            <q-item-label>
+              <q-icon name="schedule" class="q-mr-sm" />
+              AI Scribe History
+            </q-item-label>
+          </q-item-section>
         </q-item>
-
-        <q-item clickable v-ripple to="/providers">
-          <q-item-section avatar><q-icon name="people" /></q-item-section>
-          <q-item-section>Providers</q-item-section>
+        <q-item to="/help" exact clickable v-ripple>
+          <q-item-section>
+            <q-item-label>
+              <q-icon name="help" class="q-mr-sm" />
+              Help
+            </q-item-label>
+          </q-item-section>
         </q-item>
       </q-list>
     </q-drawer>
@@ -52,7 +62,8 @@
 import { ref } from 'vue'
 
 const leftDrawerOpen = ref(false)
-function toggleLeftDrawer () {
+
+function toggleLeftDrawer() {
   leftDrawerOpen.value = !leftDrawerOpen.value
 }
 </script>

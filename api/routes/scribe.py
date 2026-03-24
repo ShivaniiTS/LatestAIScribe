@@ -111,8 +111,17 @@ async def get_patient_by_appointment(appointment_id: str):
     for p in _STUB_PATIENTS:
         if p["appointment_id"] == appointment_id:
             return {**p, "patient_full_name": p["patient_name"]}
-    # Fall back to a generic record so the frontend doesn't break
-    raise HTTPException(404, f"Appointment '{appointment_id}' not found")
+    # Return a generic stub so the frontend doesn't break on unknown IDs
+    return {
+        "appointment_id": appointment_id,
+        "patient_name": "Unknown Patient",
+        "patient_full_name": "Unknown Patient",
+        "account_number": "",
+        "case_name": "",
+        "case_number": "",
+        "location_name": "",
+        "provider_name": "",
+    }
 
 
 @router.post("/patients/provider-date")
@@ -216,22 +225,24 @@ async def _run_pipeline(encounter_id: str, audio_path: str, demographics: dict):
     """Trigger the AI pipeline asynchronously."""
     update_encounter(encounter_id, status="processing", has_audio=True)
     try:
-        from orchestrator.graph import run_pipeline
-        result = await run_pipeline(
-            audio_path=audio_path,
-            encounter_id=encounter_id,
-            provider_id=demographics.get("provider_id", "default"),
-            patient_id=demographics.get("patient_name", "unknown"),
-            visit_type=demographics.get("audio_type", "conversation"),
-            mode="scribe",
+        from orchestrator.graph import arun_encounter
+        result = await arun_encounter(
+            encounter_id,
+            demographics.get("provider_id") or demographics.get("provider_name") or "default",
+            audio_file_path=audio_path,
+            recording_mode=demographics.get("audio_type", "conversation"),
         )
+        soap_note = result.get("note") or result.get("clinical_note")
+        transcript = result.get("transcript")
+        status = "error" if result.get("error") else "completed"
         update_encounter(
             encounter_id,
-            status="completed",
-            soap_note=result.get("soap_note"),
-            transcript=result.get("transcript"),
+            status=status,
+            soap_note=soap_note,
+            transcript=transcript,
+            message=result.get("error", ""),
         )
-        log.info("Pipeline completed for %s", encounter_id)
+        log.info("Pipeline completed for %s (status=%s)", encounter_id, status)
     except Exception as exc:
         log.exception("Pipeline failed for %s: %s", encounter_id, exc)
         update_encounter(encounter_id, status="error", message=str(exc))

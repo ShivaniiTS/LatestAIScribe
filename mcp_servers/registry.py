@@ -27,6 +27,7 @@ _SERVER_MAP: dict[tuple[str, str], tuple[str, str]] = {
     ("llm", "ollama"): ("mcp_servers.llm.ollama_server", "OllamaServer"),
     ("ehr", "stub"): ("mcp_servers.ehr.stub_server", "StubEHRServer"),
     ("ehr", "manual"): ("mcp_servers.ehr.stub_server", "StubEHRServer"),
+}
 
 
 @dataclass

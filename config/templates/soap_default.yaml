@@ -1,0 +1,19 @@
+# config/templates/soap_default.yaml
+name: "SOAP Default"
+note_type: SOAP
+specialty: general
+source_file: soap_default.yaml
+
+sections:
+  - label: SUBJECTIVE
+    required: true
+    prompt_hint: "Chief complaint, HPI, ROS, medications, allergies"
+  - label: OBJECTIVE
+    required: true
+    prompt_hint: "Vitals, physical exam findings, lab/imaging results"
+  - label: ASSESSMENT
+    required: true
+    prompt_hint: "Diagnosis, differential, clinical reasoning"
+  - label: PLAN
+    required: true
+    prompt_hint: "Treatment plan, medications, follow-up, referrals"

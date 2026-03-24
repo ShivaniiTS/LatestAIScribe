@@ -1,0 +1,11 @@
+provider_id: dr_dup
+name: A
+credentials: ''
+specialty: general
+default_note_type: soap
+default_recording_mode: conversation
+custom_vocabulary: []
+preferred_template: soap_default
+style_preferences: {}
+quality_scores: {}
+asr_lora_enabled: false

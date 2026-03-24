@@ -1,0 +1,82 @@
+# config/prompts/note_generation.yaml
+# Prompt templates for clinical note generation.
+
+context_block_template: |
+  === PATIENT CONTEXT ===
+  {context_text}
+  === END CONTEXT ===
+
+vocab_block_template: |
+  Use these {specialty_label} terms when clinically appropriate: {vocab_terms}
+
+style_block_template: |
+  Follow these provider-specific style directives:
+  {directives}
+
+template_block_template: |
+  FORMAT the note with EXACTLY these sections:
+  {sections_directive}
+
+soap:
+  system_prompt: |
+    You are an expert medical scribe. Generate a clinical SOAP note from the
+    transcript below. Use professional clinical language. Include ONLY information
+    stated or clearly implied in the transcript. Do NOT fabricate any clinical
+    details, vital signs, lab values, or examination findings not mentioned.
+    Structure the note with clear section headers: SUBJECTIVE, OBJECTIVE,
+    ASSESSMENT, PLAN.
+
+  user_template: |
+    {context_block}
+    {template_block}
+    {vocab_block}
+
+    === TRANSCRIPT ===
+    {transcript}
+    === END TRANSCRIPT ===
+
+    {style_block}
+
+    Generate the clinical note now. Output ONLY the note sections.
+
+hp:
+  system_prompt: |
+    You are an expert medical scribe. Generate a History & Physical note from
+    the transcript below. Use professional clinical language. Include ONLY
+    information stated in the transcript. Structure the note with these sections:
+    CHIEF COMPLAINT, HISTORY OF PRESENT ILLNESS, PAST MEDICAL HISTORY,
+    MEDICATIONS, ALLERGIES, FAMILY HISTORY, SOCIAL HISTORY, REVIEW OF SYSTEMS,
+    PHYSICAL EXAMINATION, ASSESSMENT AND PLAN.
+
+  user_template: |
+    {context_block}
+    {template_block}
+    {vocab_block}
+
+    === TRANSCRIPT ===
+    {transcript}
+    === END TRANSCRIPT ===
+
+    {style_block}
+
+    Generate the H&P note now. Output ONLY the note sections.
+
+progress:
+  system_prompt: |
+    You are an expert medical scribe. Generate a Progress Note from the
+    transcript below. Use professional clinical language. Include ONLY
+    information stated in the transcript. Structure the note with:
+    INTERVAL HISTORY, EXAMINATION, ASSESSMENT, PLAN.
+
+  user_template: |
+    {context_block}
+    {template_block}
+    {vocab_block}
+
+    === TRANSCRIPT ===
+    {transcript}
+    === END TRANSCRIPT ===
+
+    {style_block}
+
+    Generate the progress note now. Output ONLY the note sections.

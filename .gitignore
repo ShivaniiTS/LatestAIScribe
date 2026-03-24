@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+node_modules/
+dist/
+.quasar/
+data/audio/*
+!data/audio/.gitkeep
+output/conversations/*
+output/dictation/*
+*.egg-info/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/

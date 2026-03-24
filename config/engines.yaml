@@ -1,0 +1,70 @@
+# config/engines.yaml
+# ALL engine/model selection is driven here — zero code changes to swap providers.
+
+# ── LLM inference ─────────────────────────────────────────────────────────────
+llm:
+  default_server: ollama
+  servers:
+    ollama:
+      type: ollama
+      url: "http://localhost:11434/v1"
+      models:
+        note_generation:  "qwen2.5:14b"
+        coding:           "qwen2.5:14b"
+        patient_summary:  "qwen2.5:14b"
+        command_parse:    "qwen2.5:14b"
+      keep_alive: 0                   # unload from VRAM after response
+
+# ── ASR (speech-to-text) ──────────────────────────────────────────────────────
+asr:
+  default_server: whisperx
+  servers:
+    whisperx:
+      type: whisperx
+      model: "large-v3"
+      device: "cuda"
+      compute_type: "float16"
+      diarization: true
+      hf_token_env: "HF_TOKEN"
+      min_speakers: 1
+      max_speakers: 5
+      language: "en"
+      lora_enabled: false
+
+# ── Audio processing ──────────────────────────────────────────────────────────
+audio_processing:
+  noise_suppression:
+    default: passthrough
+    options: [deepfilternet, rnnoise, passthrough]
+    aggressiveness: moderate
+  vad:
+    default: silero
+    sensitivity: 0.5
+  format_conversion:
+    target_sample_rate: 16000
+    target_format: wav
+
+# ── Post-processing ──────────────────────────────────────────────────────────
+post_processing:
+  mode: rules_only                    # rules_only — NO LLM correction
+  rules_pipeline: true
+  medical_wordlist: "postprocessor/medical_wordlist.txt"
+
+# ── Database and storage ──────────────────────────────────────────────────────
+database:
+  url_env: "DATABASE_URL"
+
+storage:
+  type: local                         # local | minio
+  local_fallback: "data/audio"
+  bucket: "ai-scribe-audio"
+
+# ── Note templates ────────────────────────────────────────────────────────────
+templates:
+  default: "soap_default"
+  path: "config/templates"
+  available:
+    - soap_default
+    - ortho_followup
+    - psych_progress
+    - peds_wellchild

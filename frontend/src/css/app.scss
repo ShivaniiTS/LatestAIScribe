@@ -1,0 +1,37 @@
+/* app.scss — global styles */
+body {
+  font-family: 'Roboto', sans-serif;
+}
+
+.page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.soap-section {
+  margin-bottom: 12px;
+}
+
+.soap-section .q-card__section {
+  padding: 12px 16px;
+}
+
+/* Recording pulse animation */
+@keyframes pulse-record {
+  0% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.5); }
+  70% { box-shadow: 0 0 0 12px rgba(244, 67, 54, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0); }
+}
+
+.recording-active {
+  animation: pulse-record 1.5s infinite;
+}
+
+/* Waveform canvas */
+.waveform-canvas {
+  width: 100%;
+  height: 80px;
+  background: #f5f5f5;
+  border-radius: 8px;
+}

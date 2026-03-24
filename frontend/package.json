@@ -1,0 +1,33 @@
+{
+  "name": "ai-scribe-frontend",
+  "version": "1.0.0",
+  "description": "AI Scribe Enterprise Frontend",
+  "productName": "AI Scribe Enterprise",
+  "author": "AI Scribe Enterprise",
+  "private": true,
+  "scripts": {
+    "dev": "quasar dev",
+    "build": "quasar build",
+    "lint": "eslint --ext .js,.vue src"
+  },
+  "dependencies": {
+    "vue": "^3.5.0",
+    "vue-router": "^4.4.0",
+    "@quasar/extras": "^1.16.0",
+    "quasar": "^2.16.0",
+    "axios": "^1.7.0",
+    "lamejs": "^1.2.1",
+    "pinia": "^2.2.0"
+  },
+  "devDependencies": {
+    "@quasar/app-vite": "^2.1.0",
+    "eslint": "^9.0.0",
+    "eslint-plugin-vue": "^9.0.0",
+    "vite-plugin-checker": "^0.7.0"
+  },
+  "engines": {
+    "node": "^20 || ^22",
+    "npm": ">= 6.13.4",
+    "yarn": ">= 1.21.1"
+  }
+}

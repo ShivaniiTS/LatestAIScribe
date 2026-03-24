@@ -2,8 +2,8 @@ import { defineBoot } from '#q-app/wrappers'
 import axios from 'axios'
 
 // Use relative base URL so the same origin serves API + static files.
-// In dev, set VITE_API_BASE_URL to e.g. http://localhost:8080
-export const baseURL = import.meta.env.VITE_API_BASE_URL || ''
+// In dev, set VITE_API_BASE_URL=http://localhost:8000 before running quasar dev.
+export const baseURL = process.env.API_BASE_URL || ''
 
 const api = axios.create({
   baseURL,

@@ -12,7 +12,8 @@ export default configure(() => {
       target: { browser: ['es2022'] },
       vueRouterMode: 'history',
       env: {
-        API_BASE_URL: process.env.VITE_API_BASE_URL || 'http://localhost:8000',
+        // Empty string = same-origin. Set VITE_API_BASE_URL for cross-origin dev.
+        API_BASE_URL: process.env.VITE_API_BASE_URL || '',
       },
       // vite-plugin-checker (ESLint) removed — not needed for production builds
     },

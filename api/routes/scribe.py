@@ -104,6 +104,17 @@ class PatientSearchRequest(BaseModel):
     date: Optional[str] = None
 
 
+@router.get("/patients/appointment/{appointment_id}")
+async def get_patient_by_appointment(appointment_id: str):
+    """Return stub patient data for a given appointment_id."""
+    # Look for a matching stub patient first
+    for p in _STUB_PATIENTS:
+        if p["appointment_id"] == appointment_id:
+            return {**p, "patient_full_name": p["patient_name"]}
+    # Fall back to a generic record so the frontend doesn't break
+    raise HTTPException(404, f"Appointment '{appointment_id}' not found")
+
+
 @router.post("/patients/provider-date")
 async def search_patients(req: PatientSearchRequest):
     """Return stub patients for any provider/date combination."""

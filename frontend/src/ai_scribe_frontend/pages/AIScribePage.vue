@@ -11,7 +11,7 @@
         </div>
         <div class="col-12 col-md-4 text-right column items-end q-gutter-sm">
           <q-img
-            src="/images/excelsia-logo.png"
+            src="/excelsia_logo.png"
             alt="Excelsia Injury Care"
             class="logo"
             ratio="4/1"

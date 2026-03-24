@@ -81,8 +81,13 @@ class OllamaServer(LLMEngine):
 
     @classmethod
     def from_config(cls, cfg: dict[str, Any]) -> "OllamaServer":
+        import os
+        raw_url = cfg.get("url", _DEFAULT_URL)
+        # Support $ENV_VAR syntax in engines.yaml
+        if raw_url.startswith("$"):
+            raw_url = os.getenv(raw_url[1:], _DEFAULT_URL)
         return cls(
-            url=cfg.get("url", _DEFAULT_URL),
+            url=raw_url,
             api_key=cfg.get("api_key"),
             model_overrides=cfg.get("models", {}),
         )

@@ -50,8 +50,13 @@ services:
       - "8080:8000"
     env_file:
       - .env
+    environment:
+      # Override so API can reach Ollama via Docker internal network.
+      # The .env file may set OLLAMA_URL=http://localhost:... which is wrong in Docker.
+      OLLAMA_URL: http://ollama:11434/v1
     volumes:
       - app_data:/app/data
+      - whisper_cache:/tmp/whisper_models
     depends_on:
       db:
         condition: service_healthy
@@ -60,3 +65,4 @@ volumes:
   pgdata:
   ollama_models:
   app_data:
+  whisper_cache:   # persists downloaded Whisper model across container restarts

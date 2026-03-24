@@ -22,10 +22,11 @@ EngineBase = Union[ASREngine, LLMEngine, EHRAdapter]
 
 _SERVER_MAP: dict[tuple[str, str], tuple[str, str]] = {
     ("asr", "whisperx"): ("mcp_servers.asr.whisperx_server", "WhisperXServer"),
+    ("asr", "faster_whisper"): ("mcp_servers.asr.faster_whisper_server", "FasterWhisperServer"),
+    ("asr", "faster-whisper"): ("mcp_servers.asr.faster_whisper_server", "FasterWhisperServer"),
     ("llm", "ollama"): ("mcp_servers.llm.ollama_server", "OllamaServer"),
     ("ehr", "stub"): ("mcp_servers.ehr.stub_server", "StubEHRServer"),
     ("ehr", "manual"): ("mcp_servers.ehr.stub_server", "StubEHRServer"),
-}
 
 
 @dataclass

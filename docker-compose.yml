@@ -7,8 +7,8 @@ services:
       POSTGRES_DB: aiscribe
       POSTGRES_USER: aiscribe
       POSTGRES_PASSWORD: aiscribe123
-    ports:
-      - "5432:5432"
+    # No host port binding — API connects via internal Docker network (db:5432).
+    # Avoids conflict if another Postgres is already bound to host:5432.
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

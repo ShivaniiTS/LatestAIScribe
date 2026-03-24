@@ -12,7 +12,7 @@ router = APIRouter(tags=["health"])
 log = logging.getLogger("api.health")
 
 
-@router.get("/")
+@router.get("/api")
 def root():
     return {
         "service": "AI Scribe Enterprise API",

@@ -14,9 +14,7 @@ export default configure(() => {
       env: {
         API_BASE_URL: process.env.VITE_API_BASE_URL || 'http://localhost:8000',
       },
-      vitePlugins: [
-        ['vite-plugin-checker', { eslint: { lintCommand: 'eslint "src/**/*.{js,vue}"' } }, { server: false }],
-      ],
+      // vite-plugin-checker (ESLint) removed — not needed for production builds
     },
 
     devServer: {

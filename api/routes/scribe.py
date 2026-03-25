@@ -95,6 +95,24 @@ _STUB_PATIENTS = [
 
 
 # ---------------------------------------------------------------------------
+# GET /api/audio/{encounter_id}  – serve the recorded audio file
+# ---------------------------------------------------------------------------
+@router.get("/api/audio/{encounter_id}")
+async def get_audio(encounter_id: str):
+    """Serve the audio file for an encounter."""
+    enc = get_encounter(encounter_id)
+    if enc:
+        audio_path = enc.get("audio_path")
+        if audio_path and Path(audio_path).exists():
+            return FileResponse(audio_path, media_type="audio/mpeg")
+    # Fallback: scan the audio directory for any mp3
+    enc_audio_dir = audio_dir(encounter_id)
+    for f in sorted(enc_audio_dir.glob("*.mp3")):
+        return FileResponse(str(f), media_type="audio/mpeg")
+    raise HTTPException(404, "Audio not found for this encounter")
+
+
+# ---------------------------------------------------------------------------
 # POST /patients/provider-date  – stub patient search
 # ---------------------------------------------------------------------------
 class PatientSearchRequest(BaseModel):

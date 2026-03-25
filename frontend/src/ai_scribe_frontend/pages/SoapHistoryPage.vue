@@ -203,7 +203,7 @@ async function fetchHistoryData() {
 }
 
 function playAudio(row) {
-  currentAudioUrl.value = `/encounters/${row.encounter_id}/audio`
+  currentAudioUrl.value = `/api/audio/${row.encounter_id}`
   audioDialogVisible.value = true
 }
 

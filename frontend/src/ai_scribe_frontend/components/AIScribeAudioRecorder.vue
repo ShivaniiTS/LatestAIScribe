@@ -327,6 +327,7 @@ let audioContext = null
 let analyser = null
 let animationId = null
 let timerInterval = null
+let progressWs = null
 let waveformHistory = []
 const MAX_WAVEFORM_BARS = 60
 
@@ -821,18 +822,45 @@ async function submitAllRecordings() {
   uploadProgress.value = 0
 
   try {
+    let lastUploadResp = null
+
     // In dictation mode, upload dictation recording
     if (recordingMode.value === 'dictation' && dictationRecording.value.blob) {
-      await uploadSingleRecording(dictationRecording.value.blob, 'dictation', encounterId, guarantorId, appointmentId, caseId)
+      lastUploadResp = await uploadSingleRecording(
+        dictationRecording.value.blob,
+        'dictation',
+        encounterId,
+        guarantorId,
+        appointmentId,
+        caseId,
+        true,
+      )
     } else {
       // In conversation mode, upload conversation
       if (conversationRecording.value.blob) {
-        await uploadSingleRecording(conversationRecording.value.blob, 'conversation', encounterId, guarantorId, appointmentId, caseId)
+        const shouldProcessConversationOnly = !notesRecording.value.completed && notesSkipped.value
+        lastUploadResp = await uploadSingleRecording(
+          conversationRecording.value.blob,
+          'conversation',
+          encounterId,
+          guarantorId,
+          appointmentId,
+          caseId,
+          shouldProcessConversationOnly,
+        )
       }
       
       // Upload notes recording only if completed
       if (notesRecording.value.completed && notesRecording.value.blob) {
-        await uploadSingleRecording(notesRecording.value.blob, 'notes', encounterId, guarantorId, appointmentId, caseId)
+        lastUploadResp = await uploadSingleRecording(
+          notesRecording.value.blob,
+          'notes',
+          encounterId,
+          guarantorId,
+          appointmentId,
+          caseId,
+          true,
+        )
       }
     }
     
@@ -865,6 +893,11 @@ async function submitAllRecordings() {
     
     emit('recording-submitted', { type: emitType })
 
+    if (lastUploadResp?.data?.encounter_id || lastUploadResp?.encounter_id) {
+      const eid = String(lastUploadResp.data?.encounter_id || lastUploadResp.encounter_id)
+      connectProgressWebSocket(eid)
+    }
+
     setTimeout(() => {
       resetAllRecordings()
       uploadSuccess.value = true
@@ -885,7 +918,7 @@ async function submitAllRecordings() {
   }
 }
 
-async function uploadSingleRecording(blob, audioType, encounterId, guarantorId, appointmentId, caseId) {
+async function uploadSingleRecording(blob, audioType, encounterId, guarantorId, appointmentId, caseId, processNow = true) {
   const formData = new FormData()
   
   const mimeType = blob.type
@@ -901,24 +934,25 @@ async function uploadSingleRecording(blob, audioType, encounterId, guarantorId, 
   formData.append('case_id', String(caseId))
   formData.append('encounter_id', String(encounterId))
   formData.append('audio_type', audioType)
+  formData.append('process_now', processNow ? 'true' : 'false')
   
-  // Include demographics with first (conversation) upload so encounter is created with patient info
-  if (audioType === 'conversation') {
-    const demographics = {
-      date: props.formData.date || '',
-      patient_name: props.formData.patient_name || '',
-      account_number: props.formData.account_number || '',
-      case_name: props.formData.case_name || '',
-      case_number: props.formData.case_number || '',
-      location_code: props.formData.location_code || '',
-      location_name: props.formData.location_name || '',
-      provider_name: props.formData.provider_name || '',
-      rendering_provider: props.formData.rendering_provider_id || '',
-      d_o_b: props.formData.d_o_b || '',
-      injury_date: props.formData.injury_date || ''
-    }
-    formData.append('demographics', JSON.stringify(demographics))
+  // Include demographics with every upload so backend mode/provider mapping is correct.
+  const demographics = {
+    date: props.formData.date || '',
+    patient_name: props.formData.patient_name || '',
+    account_number: props.formData.account_number || '',
+    case_name: props.formData.case_name || '',
+    case_number: props.formData.case_number || '',
+    location_code: props.formData.location_code || '',
+    location_name: props.formData.location_name || '',
+    provider_name: props.formData.provider_name || '',
+    provider_id: props.formData.provider_id || '',
+    rendering_provider: props.formData.rendering_provider_id || '',
+    recording_mode: audioType === 'dictation' ? 'dictation' : 'ambient',
+    d_o_b: props.formData.d_o_b || '',
+    injury_date: props.formData.injury_date || ''
   }
+  formData.append('demographics', JSON.stringify(demographics))
 
   const response = await api.post('/api/upload-audio', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
@@ -935,6 +969,38 @@ async function uploadSingleRecording(blob, audioType, encounterId, guarantorId, 
   }
   
   return response.data
+}
+
+function connectProgressWebSocket(encounterId) {
+  try {
+    if (progressWs) {
+      progressWs.close()
+      progressWs = null
+    }
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const wsUrl = `${protocol}//${window.location.host}/ws/encounters/${encounterId}`
+    progressWs = new WebSocket(wsUrl)
+
+    progressWs.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data)
+        if (msg.type === 'progress') {
+          if (typeof msg.pct === 'number') {
+            uploadProgress.value = Math.max(0, Math.min(1, msg.pct / 100))
+          }
+        }
+      } catch {
+        // ignore malformed ws frames
+      }
+    }
+
+    progressWs.onclose = () => {
+      progressWs = null
+    }
+  } catch {
+    // WebSocket is best-effort; upload still succeeds without it.
+  }
 }
 
 async function uploadDemographics() {
@@ -987,6 +1053,10 @@ onUnmounted(() => {
   if (currentRecordingUrl.value) URL.revokeObjectURL(currentRecordingUrl.value)
   if (conversationRecording.value.url) URL.revokeObjectURL(conversationRecording.value.url)
   if (notesRecording.value.url) URL.revokeObjectURL(notesRecording.value.url)
+  if (progressWs) {
+    progressWs.close()
+    progressWs = null
+  }
 })
 
 watch(audioPlayer, (player) => {

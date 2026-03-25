@@ -106,3 +106,36 @@ def get_mt_detail(encounter_id: str):
         "provider_id": enc.get("provider_id"),
         "mode": enc.get("mode"),
     }
+
+
+@router.post("/admin/send-report")
+def send_mt_report_now():
+    """Trigger an immediate MT daily report email (admin endpoint)."""
+    try:
+        from mt.report_emailer import MTReportEmailer
+        from mt.config import load_mt_config
+        import api.store as _store
+
+        mt_cfg = load_mt_config()
+        if not mt_cfg["report_recipients"]:
+            raise HTTPException(503, "MT_REPORT_RECIPIENTS is not configured")
+
+        emailer = MTReportEmailer(
+            recipients=mt_cfg["report_recipients"],
+            schedule_times=[],
+            smtp_host=mt_cfg["smtp_host"],
+            smtp_port=mt_cfg["smtp_port"],
+            smtp_username=mt_cfg["smtp_username"],
+            smtp_password=mt_cfg["smtp_password"],
+            smtp_from=mt_cfg["smtp_from"],
+            store=_store,
+        )
+        success = emailer.send_now()
+        if not success:
+            raise HTTPException(500, "Failed to send MT report — check SMTP configuration")
+        return {"status": "sent", "recipients": mt_cfg["report_recipients"]}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.exception("Error sending MT report")
+        raise HTTPException(500, str(exc))

@@ -67,13 +67,29 @@
           </template>
           <template v-slot:body-cell-audio="props">
             <q-td :props="props" class="text-center">
-              <q-btn
-                v-if="props.row.has_audio"
-                round flat color="primary" icon="play_arrow" size="sm"
-                @click="playAudio(props.row)"
-              >
-                <q-tooltip>Play Recording</q-tooltip>
-              </q-btn>
+              <div v-if="props.row.has_audio" class="row items-center justify-center q-gutter-xs">
+                <q-btn
+                  v-if="props.row.audio_files?.conversation"
+                  round flat color="primary" icon="play_arrow" size="sm"
+                  @click="playAudio(props.row, 'conversation')"
+                >
+                  <q-tooltip>Play Conversation</q-tooltip>
+                </q-btn>
+                <q-btn
+                  v-if="props.row.audio_files?.notes"
+                  round flat color="secondary" icon="play_arrow" size="sm"
+                  @click="playAudio(props.row, 'notes')"
+                >
+                  <q-tooltip>Play Notes</q-tooltip>
+                </q-btn>
+                <q-btn
+                  v-if="props.row.audio_files?.dictation || (!props.row.audio_files?.conversation && !props.row.audio_files?.notes)"
+                  round flat color="teal" icon="play_arrow" size="sm"
+                  @click="playAudio(props.row, 'dictation')"
+                >
+                  <q-tooltip>Play Dictation</q-tooltip>
+                </q-btn>
+              </div>
               <span v-else class="text-grey-5">—</span>
             </q-td>
           </template>
@@ -124,10 +140,48 @@
           <q-icon name="description" size="md" class="q-mr-sm" />
           <div class="text-h6">SOAP Note - {{ currentEncounterId }}</div>
           <q-space />
+          <q-btn
+            v-if="!isEditMode"
+            icon="edit"
+            flat
+            label="Edit"
+            color="white"
+            class="q-mr-sm"
+            @click="enableEditMode"
+          />
+          <template v-else>
+            <q-btn
+              icon="close"
+              flat
+              label="Cancel"
+              color="white"
+              class="q-mr-sm"
+              @click="cancelEditMode"
+            />
+            <q-btn
+              icon="save"
+              flat
+              label="Save"
+              color="white"
+              :loading="soapSaving"
+              class="q-mr-sm"
+              @click="saveSoapNote"
+            />
+          </template>
           <q-btn icon="close" flat round dense v-close-popup color="white" />
         </q-card-section>
         <q-card-section class="q-pa-lg" style="max-height: 80vh; overflow-y: auto;">
-          <div v-if="currentSoapNote" class="soap-content">
+          <div v-if="isEditMode" class="soap-content">
+            <q-textarea
+              v-model="editedSoapText"
+              autogrow
+              outlined
+              type="textarea"
+              class="soap-edit-textarea"
+              :input-style="{ fontFamily: 'Georgia, serif', whiteSpace: 'pre-wrap', lineHeight: '1.6' }"
+            />
+          </div>
+          <div v-else-if="currentSoapNote" class="soap-content">
             <div v-for="key in Object.keys(currentSoapNote)" :key="key" class="q-mb-lg">
               <div class="text-h6 text-weight-bold text-uppercase q-mb-sm text-primary">
                 {{ key.replace(/_/g, ' ') }}
@@ -155,6 +209,9 @@ const soapDialogVisible = ref(false)
 const currentAudioUrl = ref('')
 const currentSoapNote = ref(null)
 const currentEncounterId = ref('')
+const isEditMode = ref(false)
+const soapSaving = ref(false)
+const editedSoapText = ref('')
 
 const pagination = ref({ sortBy: 'date', descending: true, page: 1, rowsPerPage: 25 })
 
@@ -180,7 +237,12 @@ const filteredEncounters = computed(() => {
 function getStatusColor(status) {
   const map = {
     completed: 'positive',
+    complete: 'positive',
     processing: 'primary',
+    provider_edited: 'orange',
+    mt_review: 'purple',
+    mt_assigned: 'purple',
+    mt_corrected: 'positive',
     error: 'negative',
     failed: 'negative',
     pending: 'grey-6',
@@ -202,29 +264,130 @@ async function fetchHistoryData() {
   }
 }
 
-function playAudio(row) {
-  currentAudioUrl.value = `/api/audio/${row.encounter_id}`
+function playAudio(row, audioType = '') {
+  currentAudioUrl.value = audioType
+    ? `/api/audio/${row.encounter_id}?audio_type=${audioType}`
+    : `/api/audio/${row.encounter_id}`
   audioDialogVisible.value = true
 }
 
 function showSoapDialog(row) {
+  isEditMode.value = false
   currentEncounterId.value = row.encounter_id
   try {
-    currentSoapNote.value = typeof row.soap_note === 'string'
+    const parsed = typeof row.soap_note === 'string'
       ? JSON.parse(row.soap_note)
       : row.soap_note
+    currentSoapNote.value = normalizeSoap(parsed)
   } catch {
-    currentSoapNote.value = { 'Note': row.soap_note }
+    currentSoapNote.value = normalizeSoap(row.soap_note)
   }
+  editedSoapText.value = toSoapMarkdown(currentSoapNote.value)
   soapDialogVisible.value = true
 }
 
-let pollingTimer = null
+function normalizeSoap(note) {
+  if (!note) {
+    return { subjective: '', objective: '', assessment: '', plan: '' }
+  }
+
+  if (typeof note === 'string') {
+    return parseSoapMarkdown(note)
+  }
+
+  if (note?.subjective || note?.objective || note?.assessment || note?.plan) {
+    return {
+      subjective: note.subjective || '',
+      objective: note.objective || '',
+      assessment: note.assessment || '',
+      plan: note.plan || '',
+    }
+  }
+
+  if (Array.isArray(note.sections)) {
+    const out = { subjective: '', objective: '', assessment: '', plan: '' }
+    for (const section of note.sections) {
+      const key = String(section?.label || '').toLowerCase().trim()
+      const content = String(section?.content || '')
+      if (key === 'subjective' || key === 's') out.subjective = content
+      if (key === 'objective' || key === 'o') out.objective = content
+      if (key === 'assessment' || key === 'a') out.assessment = content
+      if (key === 'plan' || key === 'p') out.plan = content
+    }
+    if (!out.subjective && note.full_text) out.subjective = String(note.full_text)
+    return out
+  }
+
+  return {
+    subjective: note.subjective || note.Subjective || '',
+    objective: note.objective || note.Objective || '',
+    assessment: note.assessment || note.Assessment || '',
+    plan: note.plan || note.Plan || '',
+  }
+}
+
+function parseSoapMarkdown(content) {
+  const out = { subjective: '', objective: '', assessment: '', plan: '' }
+  const re = /\*\*(SUBJECTIVE|OBJECTIVE|ASSESSMENT|PLAN):\*\*\s*([\s\S]*?)(?=\n\*\*(?:SUBJECTIVE|OBJECTIVE|ASSESSMENT|PLAN):\*\*|$)/gi
+  let found = false
+  let match
+  while ((match = re.exec(content)) !== null) {
+    found = true
+    out[match[1].toLowerCase()] = (match[2] || '').trim()
+  }
+  if (!found) {
+    out.subjective = content || ''
+  }
+  return out
+}
+
+function toSoapMarkdown(note) {
+  const n = normalizeSoap(note)
+  return [
+    '**SUBJECTIVE:**',
+    n.subjective || 'Not documented',
+    '',
+    '**OBJECTIVE:**',
+    n.objective || 'Not documented',
+    '',
+    '**ASSESSMENT:**',
+    n.assessment || 'Not documented',
+    '',
+    '**PLAN:**',
+    n.plan || 'Not documented',
+  ].join('\n')
+}
+
+function enableEditMode() {
+  editedSoapText.value = toSoapMarkdown(currentSoapNote.value)
+  isEditMode.value = true
+}
+
+function cancelEditMode() {
+  isEditMode.value = false
+}
+
+async function saveSoapNote() {
+  if (!currentEncounterId.value || !editedSoapText.value.trim()) return
+  soapSaving.value = true
+  try {
+    await api.put(`/notes/${currentEncounterId.value}`, {
+      content: editedSoapText.value,
+    })
+    await fetchHistoryData()
+    currentSoapNote.value = parseSoapMarkdown(editedSoapText.value)
+    isEditMode.value = false
+  } catch (err) {
+    console.error('Failed to save SOAP note:', err)
+  } finally {
+    soapSaving.value = false
+  }
+}
+
 onMounted(() => {
   fetchHistoryData()
-  pollingTimer = setInterval(fetchHistoryData, 60000) // refresh every minute
 })
-onUnmounted(() => { if (pollingTimer) clearInterval(pollingTimer) })
+onUnmounted(() => {})
 </script>
 
 <style scoped>

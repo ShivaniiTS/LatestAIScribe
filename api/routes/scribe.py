@@ -98,11 +98,20 @@ _STUB_PATIENTS = [
 # GET /api/audio/{encounter_id}  – serve the recorded audio file
 # ---------------------------------------------------------------------------
 @router.get("/api/audio/{encounter_id}")
-async def get_audio(encounter_id: str):
+async def get_audio(encounter_id: str, audio_type: Optional[str] = Query(None)):
     """Serve the audio file for an encounter."""
     enc = get_encounter(encounter_id)
     if enc:
-        audio_path = enc.get("audio_path")
+        audio_files = enc.get("audio_files") or {}
+        audio_path = None
+        if audio_type:
+            audio_path = audio_files.get(audio_type)
+        if not audio_path:
+            audio_path = (
+                audio_files.get("dictation")
+                or audio_files.get("conversation")
+                or enc.get("audio_path")
+            )
         if audio_path and Path(audio_path).exists():
             return FileResponse(audio_path, media_type="audio/mpeg")
     # Fallback: scan the audio directory for any mp3
@@ -167,6 +176,7 @@ async def upload_audio(
     case_id: str = Form(""),
     encounter_id: str = Form(""),
     audio_type: str = Form("conversation"),
+    process_now: bool = Form(True),
     demographics: str = Form("{}"),
 ):
     # Generate encounter_id if not provided
@@ -219,15 +229,52 @@ async def upload_audio(
             date=datetime.now(UTC).strftime("%Y-%m-%d"),
         )
     else:
+        audio_files = dict(enc.get("audio_files") or {})
+        audio_files[audio_type] = str(audio_path)
         update_encounter(
             encounter_id,
-            audio_path=str(audio_path),
+            audio_path=(
+                audio_files.get("dictation")
+                or audio_files.get("conversation")
+                or str(audio_path)
+            ),
+            audio_files=audio_files,
             audio_type=audio_type,
             has_audio=True,
         )
 
-    # Fire-and-forget pipeline run
-    asyncio.create_task(_run_pipeline(encounter_id, str(audio_path), demo_data))
+    # Keep per-type audio map on first creation as well
+    enc_after = get_encounter(encounter_id) or {}
+    audio_files = dict(enc_after.get("audio_files") or {})
+    audio_files[audio_type] = str(audio_path)
+    update_encounter(
+        encounter_id,
+        audio_files=audio_files,
+        audio_path=(
+            audio_files.get("dictation")
+            or audio_files.get("conversation")
+            or str(audio_path)
+        ),
+    )
+
+    # Trigger processing only on the final upload step.
+    # This matches MDCO frontend behavior where conversation can be uploaded first,
+    # then notes/dictation upload starts processing.
+    if process_now:
+        processing_audio = (
+            audio_files.get("dictation")
+            or audio_files.get("conversation")
+            or str(audio_path)
+        )
+        recording_mode = "dictation" if audio_type == "dictation" else "ambient"
+        asyncio.create_task(
+            _run_pipeline(
+                encounter_id,
+                processing_audio,
+                demo_data,
+                recording_mode=recording_mode,
+            )
+        )
 
     return {
         "success": True,
@@ -239,18 +286,32 @@ async def upload_audio(
     }
 
 
-async def _run_pipeline(encounter_id: str, audio_path: str, demographics: dict):
+async def _run_pipeline(
+    encounter_id: str,
+    audio_path: str,
+    demographics: dict,
+    recording_mode: str = "ambient",
+):
     """Trigger the AI pipeline asynchronously."""
+    from api.ws.session_events import manager
+
     update_encounter(encounter_id, status="processing", has_audio=True)
+    await manager.send_progress(encounter_id, "init", 5, "Pipeline started")
     try:
         from orchestrator.graph import arun_encounter
+        rec_mode = demographics.get("recording_mode") or recording_mode
+
+        await manager.send_progress(encounter_id, "transcribe", 20, "Starting transcription")
         result = await arun_encounter(
             encounter_id,
             demographics.get("provider_id") or demographics.get("provider_name") or "default",
             audio_file_path=audio_path,
-            recording_mode=demographics.get("audio_type", "conversation"),
+            recording_mode=rec_mode,
         )
-        soap_note = result.get("note") or result.get("clinical_note")
+        await manager.send_progress(encounter_id, "transcribe", 60, "Transcription complete")
+
+        soap_note_raw = result.get("note") or result.get("clinical_note")
+        soap_note = _normalize_soap_note(soap_note_raw)
         transcript = result.get("transcript")
         status = "error" if result.get("error") else "completed"
         update_encounter(
@@ -260,10 +321,60 @@ async def _run_pipeline(encounter_id: str, audio_path: str, demographics: dict):
             transcript=transcript,
             message=result.get("error", ""),
         )
+        await manager.send_progress(encounter_id, "note", 90, "SOAP note generated")
+        if status == "completed":
+            await manager.send_complete(encounter_id, encounter_id)
+        else:
+            await manager.send_error(encounter_id, result.get("error", "Unknown pipeline error"))
         log.info("Pipeline completed for %s (status=%s)", encounter_id, status)
     except Exception as exc:
         log.exception("Pipeline failed for %s: %s", encounter_id, exc)
         update_encounter(encounter_id, status="error", message=str(exc))
+        await manager.send_error(encounter_id, str(exc))
+
+
+def _normalize_soap_note(note_obj):
+    """Convert pipeline note output into a stable SOAP dict for UI display/edit."""
+    if not note_obj:
+        return None
+
+    # If already in SOAP dict shape, keep it.
+    if isinstance(note_obj, dict) and any(k in note_obj for k in ("subjective", "objective", "assessment", "plan")):
+        return {
+            "subjective": note_obj.get("subjective", ""),
+            "objective": note_obj.get("objective", ""),
+            "assessment": note_obj.get("assessment", ""),
+            "plan": note_obj.get("plan", ""),
+        }
+
+    # Extract from section list (current pipeline shape).
+    if isinstance(note_obj, dict) and isinstance(note_obj.get("sections"), list):
+        out = {"subjective": "", "objective": "", "assessment": "", "plan": ""}
+        for sec in note_obj["sections"]:
+            label = str(sec.get("label", "")).strip().lower()
+            content = str(sec.get("content", "")).strip()
+            if label in ("subjective", "s"):
+                out["subjective"] = content
+            elif label in ("objective", "o"):
+                out["objective"] = content
+            elif label in ("assessment", "a"):
+                out["assessment"] = content
+            elif label in ("plan", "p"):
+                out["plan"] = content
+        # If parser missed sections, fallback to full text in subjective.
+        if not any(out.values()):
+            out["subjective"] = str(note_obj.get("full_text", "")).strip()
+        return out
+
+    if isinstance(note_obj, str):
+        return {"subjective": note_obj, "objective": "", "assessment": "", "plan": ""}
+
+    return {
+        "subjective": str(note_obj),
+        "objective": "",
+        "assessment": "",
+        "plan": "",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -322,6 +433,7 @@ async def soap_history():
             "provider_name": enc.get("provider_name") or enc.get("provider_id") or "",
             "location_name": enc.get("location_name", ""),
             "has_audio": bool(enc.get("audio_path") or enc.get("has_audio")),
+            "audio_files": enc.get("audio_files") or {},
             "soap_note": enc.get("soap_note"),
             "status": enc.get("status", "processing"),
             "created_at": enc.get("created_at", ""),

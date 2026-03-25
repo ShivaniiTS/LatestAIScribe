@@ -11,6 +11,26 @@ from api.store import get_encounter, output_dir, update_encounter
 router = APIRouter(prefix="/notes", tags=["notes"])
 
 
+def _markdown_to_soap_dict(content: str) -> dict:
+    """Parse markdown headings into SOAP sections for UI rendering."""
+    import re
+
+    section_pattern = re.compile(
+        r"\*\*(SUBJECTIVE|OBJECTIVE|ASSESSMENT|PLAN):\*\*\s*(.*?)"
+        r"(?=\n\*\*(?:SUBJECTIVE|OBJECTIVE|ASSESSMENT|PLAN):\*\*|\Z)",
+        re.IGNORECASE | re.DOTALL,
+    )
+    result = {"subjective": "", "objective": "", "assessment": "", "plan": ""}
+    matches = section_pattern.findall(content)
+    if not matches:
+        result["subjective"] = content.strip()
+        return result
+
+    for label, section_text in matches:
+        result[label.lower()] = section_text.strip()
+    return result
+
+
 class NoteEditRequest(BaseModel):
     content: str
 
@@ -48,8 +68,13 @@ def edit_note(encounter_id: str, req: NoteEditRequest):
     od = output_dir(encounter_id)
     note_path = od / "clinical_note.md"
     note_path.write_text(req.content)
-    update_encounter(encounter_id, status="edited", message="Note manually edited")
-    return {"encounter_id": encounter_id, "status": "edited"}
+    update_encounter(
+        encounter_id,
+        status="provider_edited",
+        soap_note=_markdown_to_soap_dict(req.content),
+        message="Note manually edited",
+    )
+    return {"encounter_id": encounter_id, "status": "provider_edited"}
 
 
 @router.post("/{encounter_id}/approve")

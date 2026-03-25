@@ -35,7 +35,49 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             log.warning("Database init skipped: %s", e)
 
+    # Start MT background services (sorting script + report emailer)
+    _mt_sorter = None
+    _mt_emailer = None
+    try:
+        from mt.config import load_mt_config
+        from mt.sorting_script import MTSortingScript
+        from mt.report_emailer import MTReportEmailer
+        import api.store as _store
+
+        mt_cfg = load_mt_config()
+
+        if mt_cfg["master_upload_path"]:
+            _mt_sorter = MTSortingScript(
+                master_upload_path=mt_cfg["master_upload_path"],
+                polling_interval=mt_cfg["sort_polling_interval"],
+                store=_store,
+            )
+            _mt_sorter.start()
+            log.info("MT sorting script started")
+
+        if mt_cfg["report_recipients"]:
+            _mt_emailer = MTReportEmailer(
+                recipients=mt_cfg["report_recipients"],
+                schedule_times=mt_cfg["report_schedule"],
+                smtp_host=mt_cfg["smtp_host"],
+                smtp_port=mt_cfg["smtp_port"],
+                smtp_username=mt_cfg["smtp_username"],
+                smtp_password=mt_cfg["smtp_password"],
+                smtp_from=mt_cfg["smtp_from"],
+                store=_store,
+            )
+            _mt_emailer.start()
+            log.info("MT report emailer started")
+    except Exception as e:
+        log.warning("MT background services not started: %s", e)
+
     yield
+
+    # Shutdown MT background services
+    if _mt_sorter:
+        _mt_sorter.stop()
+    if _mt_emailer:
+        _mt_emailer.stop()
 
     # Shutdown: close DB connections + unload GPU models
     try:

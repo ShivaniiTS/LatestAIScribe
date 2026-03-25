@@ -69,7 +69,7 @@ def transcribe_node(state: EncounterState) -> dict[str, Any]:
 
         config = ASRConfig(
             language="en",
-            diarize=state.get("recording_mode") == "conversation",
+            diarize=state.get("recording_mode") in ("conversation", "ambient"),
             hotwords=hotwords,
             initial_prompt=initial_prompt,
         )

@@ -51,9 +51,10 @@ services:
     env_file:
       - .env
     environment:
-      # Override so API can reach Ollama via Docker internal network.
-      # The .env file may set OLLAMA_URL=http://localhost:... which is wrong in Docker.
-      OLLAMA_URL: http://ollama:11434/v1
+      # Use the HOST's Ollama (which is healthy and has models) instead of the sidecar container.
+      OLLAMA_URL: http://host.docker.internal:11434/v1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - app_data:/app/data
       - whisper_cache:/tmp/whisper_models
